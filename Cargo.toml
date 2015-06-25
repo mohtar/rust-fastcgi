@@ -1,0 +1,8 @@
+[package]
+name = "fastcgi"
+version = "1.0.0-alpha"
+authors = ["Mohd Tarmizi Mohd Affandi"]
+license = "MIT"
+
+[dependencies]
+libc = "0.1.8"
