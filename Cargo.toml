@@ -3,6 +3,11 @@ name = "fastcgi"
 version = "1.0.0-alpha"
 authors = ["Mohd Tarmizi Mohd Affandi"]
 license = "MIT"
+description = "FastCGI library written in pure Rust"
+documentation = "http://www.rust-ci.org/mohtar/rust-fastcgi/doc/fastcgi/"
+repository = "https://github.com/mohtar/rust-fastcgi"
+readme = "README.md"
+keywords = ["fastcgi", "web", "server", "protocol", "cgi"]
 
 [dependencies]
 libc = "0.1.8"
