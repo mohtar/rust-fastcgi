@@ -414,10 +414,10 @@ impl Request {
         loop {
             match try!(Record::receive(&mut sock)) {
                 Record::UnknownType(rec_type) => {
-                    Record::UnknownType(rec_type).send(&mut sock).unwrap_or(());
+                    try!(Record::UnknownType(rec_type).send(&mut sock));
                 },
                 Record::GetValues(keys) => {
-                    Record::GetValuesResult(get_values(keys)).send(&mut sock).unwrap_or(());
+                    try!(Record::GetValuesResult(get_values(keys)).send(&mut sock));
                 },
                 Record::BeginRequest { request_id, role: Ok(role), keep_conn } => {
                     return Ok((request_id, role, keep_conn));
@@ -571,12 +571,12 @@ fn run_transport<F>(mut handler: F, transport: &mut Transport) where F: FnMut(Re
             Ok(sock) => sock,
             Err(e) => panic!(e.to_string()),
         };
-		let t = match sock.peer() {
+		let sp = match sock.peer() {
 			Ok(e)  => e,
 			Err(_) => return
 		};
         let allow = match addrs {
-            Some(ref addrs) => addrs.contains(&t),
+            Some(ref addrs) => addrs.contains(&sp),
             None => true,
         };
         if allow {
