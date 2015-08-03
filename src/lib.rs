@@ -572,7 +572,10 @@ fn run_transport<F>(mut handler: F, transport: &mut Transport) where F: FnMut(Re
             Err(e) => panic!(e.to_string()),
         };
         let allow = match addrs {
-            Some(ref addrs) => addrs.contains(&sock.peer().unwrap()),
+            Some(ref addrs) => match sock.peer() {
+                Ok(ref addr) => addrs.contains(addr),
+                Err(_) => false,
+            },
             None => true,
         };
         if allow {
