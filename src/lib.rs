@@ -414,10 +414,10 @@ impl Request {
         loop {
             match try!(Record::receive(&mut sock)) {
                 Record::UnknownType(rec_type) => {
-                    Record::UnknownType(rec_type).send(&mut sock).unwrap();
+                    try!(Record::UnknownType(rec_type).send(&mut sock));
                 },
                 Record::GetValues(keys) => {
-                    Record::GetValuesResult(get_values(keys)).send(&mut sock).unwrap();
+                    try!(Record::GetValuesResult(get_values(keys)).send(&mut sock));
                 },
                 Record::BeginRequest { request_id, role: Ok(role), keep_conn } => {
                     return Ok((request_id, role, keep_conn));
@@ -470,7 +470,7 @@ impl Request {
                         continue;
                     }
                     if content.is_empty() {
-                        params.extend(read_pairs(&mut Cursor::new(buf.as_ref())).unwrap());
+                        params.extend(try!(read_pairs(&mut Cursor::new(buf.as_ref()))));
                         break;
                     } else {
                         buf.extend(content);
@@ -547,16 +547,16 @@ impl Drop for Request {
         Record::Stdout {
             request_id: self.id,
             content: Vec::new(),
-        }.send(&mut &*self.sock).unwrap();
+        }.send(&mut &*self.sock).unwrap_or(());
         Record::Stderr {
             request_id: self.id,
             content: Vec::new()
-        }.send(&mut &*self.sock).unwrap();
+        }.send(&mut &*self.sock).unwrap_or(());
         Record::EndRequest {
             request_id: self.id,
             app_status: self.status,
             protocol_status: ProtocolStatus::RequestComplete,
-        }.send(&mut &*self.sock).unwrap();
+        }.send(&mut &*self.sock).unwrap_or(());
     }
 }
 
