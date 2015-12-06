@@ -100,6 +100,9 @@ impl Socket {
 
 impl Drop for Socket {
     fn drop(&mut self) {
+        unsafe { c::shutdown(self.inner, c::SHUT_WR); }
+        let mut buf = Vec::new();
+        self.read_to_end(&mut buf).ok();
         unsafe { c::close(self.inner); }
     }
 }
