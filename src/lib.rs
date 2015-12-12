@@ -470,7 +470,7 @@ impl Request {
                         continue;
                     }
                     if content.is_empty() {
-                        params.extend(try!(read_pairs(&mut Cursor::new(buf.as_ref()))));
+                        params.extend(try!(read_pairs(&mut Cursor::new(&buf))));
                         break;
                     } else {
                         buf.extend(content);
