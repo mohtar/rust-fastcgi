@@ -316,6 +316,7 @@ impl<'a> BufRead for Stdin<'a> {
                             self.req.is_eof = true;
                         }
                         self.req.buf = content;
+                        self.req.pos = 0;
                         break;
                     },
                     _ => (),
