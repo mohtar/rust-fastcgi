@@ -10,4 +10,4 @@ readme = "README.md"
 keywords = ["fastcgi", "web", "server", "protocol", "cgi"]
 
 [dependencies]
-libc = "0.2.7"
+libc = "0.2.9"
