@@ -1,6 +1,6 @@
 [package]
 name = "fastcgi"
-version = "1.0.0-alpha.3"
+version = "1.0.0-beta"
 authors = ["Mohd Tarmizi Mohd Affandi"]
 license = "MIT"
 description = "FastCGI library written in pure Rust"
