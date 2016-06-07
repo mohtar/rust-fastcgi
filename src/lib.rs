@@ -44,7 +44,8 @@ use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write, Cursor, BufRead};
 use std::mem;
 use std::net::TcpListener;
-use std::rc::Rc;
+use std::sync::Arc;
+
 
 #[cfg(unix)] use unix::{Transport, Socket};
 #[cfg(unix)] mod unix;
@@ -385,7 +386,7 @@ writer!(Stderr);
 /// process model. Note that this API is low level. Dealing with things like
 /// GET/POST parameters or cookies is outside the scope of this library.
 pub struct Request {
-    sock: Rc<Socket>,
+    sock: Arc<Socket>,
     id: u16,
     role: Role,
     params: HashMap<String, String>,
@@ -435,7 +436,7 @@ impl Request {
         }
     }
 
-    fn new(sock: Rc<Socket>, id: u16, role: Role) -> io::Result<Self> {
+    fn new(sock: Arc<Socket>, id: u16, role: Role) -> io::Result<Self> {
         let mut buf = Vec::new();
         let mut params = HashMap::new();
         let mut aborted = false;
@@ -580,7 +581,7 @@ fn run_transport<F>(mut handler: F, transport: &mut Transport) where F: FnMut(Re
             None => true,
         };
         if allow {
-            let sock = Rc::new(sock);
+            let sock = Arc::new(sock);
             loop {
                 let (request_id, role, keep_conn) = Request::begin(&sock).unwrap();
                 handler(Request::new(sock.clone(), request_id, role).unwrap());
