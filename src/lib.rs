@@ -28,9 +28,9 @@
 //! Example usage:
 //!
 //!     extern crate fastcgi;
-//!     
+//!
 //!     use std::io::Write;
-//!     
+//!
 //!     fn main() {
 //!         fastcgi::run(|mut req| {
 //!             write!(&mut req.stdout(), "Content-Type: text/plain\n\nHello, world!")
@@ -599,9 +599,9 @@ pub fn run<F>(handler: F) where F: FnMut(Request) {
 }
 
 #[cfg(unix)]
-/// Accepts requests from a user-supplied raw file descriptor. IPv4, IPv6, and 
+/// Accepts requests from a user-supplied raw file descriptor. IPv4, IPv6, and
 /// Unix domain sockets are supported.
-/// 
+///
 /// Available under Unix only.
 pub fn run_raw<F>(handler: F, raw_fd: std::os::unix::io::RawFd) where F: FnMut(Request) {
     run_transport(handler, &mut Transport::from_raw_fd(raw_fd))
