@@ -42,9 +42,12 @@ extern crate libc;
 
 use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write, Cursor, BufRead};
+use std::marker::{Send, Sync};
 use std::mem;
 use std::net::TcpListener;
 use std::rc::Rc;
+use std::sync::Arc;
+use std::thread;
 
 #[cfg(unix)] use unix::{Transport, Socket};
 #[cfg(unix)] mod unix;
@@ -561,12 +564,14 @@ impl Drop for Request {
     }
 }
 
-fn run_transport<F>(mut handler: F, transport: &mut Transport) where F: FnMut(Request) {
+fn run_transport<F>(handler: F, transport: &mut Transport) where
+        F: Fn(Request) + Send + Sync + 'static {
     let addrs: Option<HashSet<String>> = match std::env::var("FCGI_WEB_SERVER_ADDRS") {
         Ok(value) => Some(value.split(',').map(|s| s.to_owned()).collect()),
         Err(std::env::VarError::NotPresent) => None,
         Err(e) => Err(e).unwrap(),
     };
+    let handler = Arc::new(handler);
     loop {
         let sock = match transport.accept() {
             Ok(sock) => sock,
@@ -580,12 +585,15 @@ fn run_transport<F>(mut handler: F, transport: &mut Transport) where F: FnMut(Re
             None => true,
         };
         if allow {
-            let sock = Rc::new(sock);
-            loop {
-                let (request_id, role, keep_conn) = Request::begin(&sock).unwrap();
-                handler(Request::new(sock.clone(), request_id, role).unwrap());
-                if !keep_conn { break; }
-            }
+            let handler = handler.clone();
+            thread::spawn(move || {
+                let sock = Rc::new(sock);
+                loop {
+                    let (request_id, role, keep_conn) = Request::begin(&sock).unwrap();
+                    handler(Request::new(sock.clone(), request_id, role).unwrap());
+                    if !keep_conn { break; }
+                }
+            });
         }
     }
 }
@@ -594,7 +602,7 @@ fn run_transport<F>(mut handler: F, transport: &mut Transport) where F: FnMut(Re
 /// Runs as a FastCGI process with the given handler.
 ///
 /// Available under Unix only. If you are using Windows, use `run_tcp` instead.
-pub fn run<F>(handler: F) where F: FnMut(Request) {
+pub fn run<F>(handler: F) where F: Fn(Request) + Send + Sync + 'static {
     run_transport(handler, &mut Transport::new())
 }
 
@@ -603,19 +611,22 @@ pub fn run<F>(handler: F) where F: FnMut(Request) {
 /// Unix domain sockets are supported.
 ///
 /// Available under Unix only.
-pub fn run_raw<F>(handler: F, raw_fd: std::os::unix::io::RawFd) where F: FnMut(Request) {
+pub fn run_raw<F>(handler: F, raw_fd: std::os::unix::io::RawFd) where
+        F: Fn(Request) + Send + Sync + 'static {
     run_transport(handler, &mut Transport::from_raw_fd(raw_fd))
 }
 
 #[cfg(unix)]
 /// Accepts requests from a user-supplied TCP listener.
-pub fn run_tcp<F>(handler: F, listener: &TcpListener) where F: FnMut(Request) {
+pub fn run_tcp<F>(handler: F, listener: &TcpListener) where
+        F: Fn(Request) + Send + Sync + 'static {
     use std::os::unix::io::AsRawFd;
     run_transport(handler, &mut Transport::from_raw_fd(listener.as_raw_fd()))
 }
 
 #[cfg(windows)]
 /// Accepts requests from a user-supplied TCP listener.
-pub fn run_tcp<F>(handler: F, listener: &TcpListener) where F: FnMut(Request) {
+pub fn run_tcp<F>(handler: F, listener: &TcpListener) where
+        F: Fn(Request) + Send + Sync + 'static {
     run_transport(handler, &mut Transport::from_tcp(&listener))
 }
