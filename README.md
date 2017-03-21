@@ -9,4 +9,4 @@ Documentation
 -------------
 
 Read the generated API documentation:
-http://www.rust-ci.org/mohtar/rust-fastcgi/doc/fastcgi/
+https://docs.rs/fastcgi
