@@ -32,6 +32,7 @@
 //!     use std::io::Write;
 //!
 //!     fn main() {
+//!         if !fastcgi::is_fastcgi() { return }
 //!         fastcgi::run(|mut req| {
 //!             write!(&mut req.stdout(), "Content-Type: text/plain\n\nHello, world!")
 //!             .unwrap_or(());
@@ -629,4 +630,11 @@ pub fn run_tcp<F>(handler: F, listener: &TcpListener) where
 pub fn run_tcp<F>(handler: F, listener: &TcpListener) where
         F: Fn(Request) + Send + Sync + 'static {
     run_transport(handler, &mut Transport::from_tcp(&listener))
+}
+
+#[cfg(unix)]
+/// Check if the program is running as FastCGI. This check is not necessary if
+/// you use `run_tcp`.
+pub fn is_fastcgi() -> bool {
+    Transport::new().is_fastcgi()
 }

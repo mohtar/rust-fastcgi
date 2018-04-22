@@ -28,6 +28,7 @@ use std::io::{self, Read, Write};
 use std::mem;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::os::unix::io::RawFd;
+use std::ptr::{null_mut};
 
 const LISTENSOCK_FILENO: c::c_int = 0;
 
@@ -42,6 +43,11 @@ impl Transport {
 
     pub fn from_raw_fd(raw_fd: RawFd) -> Self {
         Transport { inner: raw_fd }
+    }
+
+    pub fn is_fastcgi(&self) -> bool {
+        let res = unsafe { c::getpeername(self.inner, null_mut(), null_mut()) };
+        res == -1 && io::Error::last_os_error().raw_os_error() == Some(c::ENOTCONN)
     }
 
     pub fn accept(&mut self) -> io::Result<Socket> {
