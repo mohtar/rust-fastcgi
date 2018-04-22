@@ -130,7 +130,7 @@ fn read_pairs<R: Read>(r: &mut R) -> io::Result<Vec<(String, String)>> {
     }
 }
 
-fn write_len<W: Write>(mut w: &mut W, n: u32) -> io::Result<()> {
+fn write_len<W: Write>(w: &mut W, n: u32) -> io::Result<()> {
     if n < 0x80 {
         try!(w.write_all(&[n as u8]));
     } else {
