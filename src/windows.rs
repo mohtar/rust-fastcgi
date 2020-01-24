@@ -36,7 +36,7 @@ impl<'a> Transport<'a> {
     }
 
     pub fn accept(&mut self) -> io::Result<Socket> {
-        let (stream, _) = try!(self.inner.accept());
+        let (stream, _) = self.inner.accept()?;
         Ok(Socket { inner: stream })
     }
 }
@@ -47,7 +47,7 @@ pub struct Socket {
 
 impl Socket {
     pub fn peer(&self) -> io::Result<String> {
-        match try!(self.inner.peer_addr()) {
+        match self.inner.peer_addr()? {
             SocketAddr::V4(addr) => Ok(addr.ip().to_string()),
             SocketAddr::V6(addr) => Ok(addr.ip().to_string()),
         }
