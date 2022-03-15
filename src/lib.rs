@@ -90,10 +90,10 @@ enum Record {
 
 fn read_len<R: Read>(mut r: &mut R) -> io::Result<u32> {
     let mut buf: Vec<u8> = Vec::with_capacity(4);
-    try!((&mut r).take(1).read_to_end(&mut buf));
+    (&mut r).take(1).read_to_end(&mut buf)?;
     if buf.len() == 1 {
         if buf[0] >> 7 == 1 {
-            assert!(try!((&mut r).take(3).read_to_end(&mut buf)) == 3);
+            assert!((&mut r).take(3).read_to_end(&mut buf)? == 3);
             Ok(
                 (((buf[0] & 0x7f) as u32) << 24)
                 + ((buf[1] as u32) << 16)
@@ -109,12 +109,12 @@ fn read_len<R: Read>(mut r: &mut R) -> io::Result<u32> {
 }
 
 fn read_pair<R: Read>(mut r: &mut R) -> io::Result<(String, String)> {
-    let key_len = try!(read_len(r));
-    let value_len = try!(read_len(r));
+    let key_len = read_len(r)?;
+    let value_len = read_len(r)?;
     let mut key = String::with_capacity(key_len as usize);
-    assert!(try!((&mut r).take(key_len as u64).read_to_string(&mut key)) == key_len as usize);
+    assert!((&mut r).take(key_len as u64).read_to_string(&mut key)? == key_len as usize);
     let mut value = String::with_capacity(value_len as usize);
-    assert!(try!((&mut r).take(value_len as u64).read_to_string(&mut value)) == value_len as usize);
+    assert!((&mut r).take(value_len as u64).read_to_string(&mut value)? == value_len as usize);
     Ok((key, value))
 }
 
@@ -123,7 +123,7 @@ fn read_pairs<R: Read>(r: &mut R) -> io::Result<Vec<(String, String)>> {
     match read_pair(r) {
         Ok(param) => {
             params.push(param);
-            params.extend(try!(read_pairs(r)).into_iter());
+            params.extend(read_pairs(r)?.into_iter());
             Ok(params)
         },
         Err(_) => Ok(params),
@@ -132,22 +132,22 @@ fn read_pairs<R: Read>(r: &mut R) -> io::Result<Vec<(String, String)>> {
 
 fn write_len<W: Write>(w: &mut W, n: u32) -> io::Result<()> {
     if n < 0x80 {
-        try!(w.write_all(&[n as u8]));
+        w.write_all(&[n as u8])?;
     } else {
         assert!(n < 0x80000000);
         let buf = unsafe {
             mem::transmute::<u32, [u8; 4]>((0x80000000 & n).to_be())
         };
-        try!(w.write_all(&buf));
+        w.write_all(&buf)?;
     }
     Ok(())
 }
 
 fn write_pairs<W: Write>(w: &mut W, pairs: Vec<(String, String)>) -> io::Result<()> {
     for (key, value) in pairs {
-        try!(write_len(w, key.len() as u32));
-        try!(write_len(w, value.len() as u32));
-        try!(write!(w, "{}{}", key, value));
+        write_len(w, key.len() as u32)?;
+        write_len(w, value.len() as u32)?;
+        write!(w, "{}{}", key, value)?;
     }
     Ok(())
 }
@@ -161,26 +161,26 @@ fn write_record<W: Write>(w: &mut W, record_type: u8, request_id: u16, content: 
     let content_length = unsafe {
         mem::transmute::<_, [u8; 2]>((content.len() as u16).to_be())
     };
-    try!(w.write_all(&[
+    w.write_all(&[
         1, record_type, request_id[0], request_id[1],
         content_length[0], content_length[1], 0, 0,
-    ])); // TODO: Padding
-    try!(w.write_all(content));
+    ])?; // TODO: Padding
+    w.write_all(content)?;
     Ok(())
 }
 
 #[inline]
 fn read_record<R: Read>(r: &mut R) -> io::Result<(u8, u16, Vec<u8>)> {
     let mut header: Vec<u8> = Vec::with_capacity(HEADER_LEN);
-    assert!(try!(r.take(HEADER_LEN as u64).read_to_end(&mut header)) == HEADER_LEN);
+    assert!(r.take(HEADER_LEN as u64).read_to_end(&mut header)? == HEADER_LEN);
     assert!(header[0] == 1);
     let record_type = header[1];
     let request_id = unsafe { u16::from_be(mem::transmute([header[2], header[3]])) };
     let content_length = unsafe { u16::from_be(mem::transmute([header[4], header[5]])) };
     let padding_length = header[6];
     let mut content: Vec<u8> = Vec::with_capacity(content_length as usize);
-    assert!(try!(r.take(content_length as u64).read_to_end(&mut content)) == content_length as usize);
-    assert!(try!(r.take(padding_length as u64).read_to_end(&mut Vec::with_capacity(padding_length as usize))) == padding_length as usize);
+    assert!(r.take(content_length as u64).read_to_end(&mut content)? == content_length as usize);
+    assert!(r.take(padding_length as u64).read_to_end(&mut Vec::with_capacity(padding_length as usize))? == padding_length as usize);
     Ok((record_type, request_id, content))
 }
 
@@ -201,22 +201,22 @@ impl Record {
                     app_status[0], app_status[1], app_status[2], app_status[3],
                     protocol_status, 0, 0, 0,
                 ];
-                try!(write_record(w, 3, request_id, &content));
+                write_record(w, 3, request_id, &content)?;
             },
             Record::Stdout { request_id, content } => {
-                try!(write_record(w, 6, request_id, &content));
+                write_record(w, 6, request_id, &content)?;
             },
             Record::Stderr { request_id, content } => {
-                try!(write_record(w, 7, request_id, &content));
+                write_record(w, 7, request_id, &content)?;
             },
             Record::GetValuesResult(items) => {
                 let mut content = Cursor::new(Vec::new());
-                try!(write_pairs(&mut content, items));
-                try!(write_record(w, 10, 0, &content.into_inner()));
+                write_pairs(&mut content, items)?;
+                write_record(w, 10, 0, &content.into_inner())?;
             },
             Record::UnknownType(record_type) => {
                 let content = [record_type, 0, 0, 0, 0, 0, 0, 0];
-                try!(write_record(w, 11, 0, &content));
+                write_record(w, 11, 0, &content)?;
             },
             _ => panic!("Record not sendable"),
         }
@@ -224,7 +224,7 @@ impl Record {
     }
 
     fn receive<R: Read>(r: &mut R) -> io::Result<Self> {
-        let (record_type, request_id, content) = try!(read_record(r));
+        let (record_type, request_id, content) = read_record(r)?;
         let rec = match record_type {
             1 => {
                 let role = unsafe {
@@ -248,7 +248,7 @@ impl Record {
             5 => Record::Stdin { request_id: request_id, content: content },
             8 => Record::Data { request_id: request_id, content: content },
             9 => {
-                let items = try!(read_pairs(&mut Cursor::new(content)));
+                let items = read_pairs(&mut Cursor::new(content))?;
                 Record::GetValues(items.into_iter().map(|(key, _)| key).collect())
             },
             _ if record_type >= 11 => Record::UnknownType(record_type),
@@ -285,24 +285,21 @@ impl<'a> BufRead for Stdin<'a> {
         if self.req.pos == self.req.buf.len() && !self.req.is_eof {
             let mut sock = &*self.req.sock;
             loop {
-                match (try!(Record::receive(&mut sock)), self.req.filter_data) {
+                match (Record::receive(&mut sock)?, self.req.filter_data) {
                     (Record::UnknownType(rec_type), _) => {
-                        try!(Record::UnknownType(rec_type).send(&mut sock));
+                        Record::UnknownType(rec_type).send(&mut sock)?;
                     },
                     (Record::GetValues(keys), _) => {
-                        try!(
-                            Record::GetValuesResult(get_values(keys))
-                            .send(&mut sock)
-                        );
+                        Record::GetValuesResult(get_values(keys))
+                        .send(&mut sock)?
                     },
                     (Record::BeginRequest { request_id, .. }, _) => {
-                        try!(Record::EndRequest {
-                                request_id: request_id,
-                                app_status: 0,
-                                protocol_status: ProtocolStatus::CantMpxConn,
-                            }
-                            .send(&mut sock)
-                        );
+                        Record::EndRequest {
+                            request_id: request_id,
+                            app_status: 0,
+                            protocol_status: ProtocolStatus::CantMpxConn,
+                        }
+                        .send(&mut sock)?
                     },
                     (Record::AbortRequest { request_id }, _) => {
                         if request_id != self.req.id {
@@ -338,8 +335,8 @@ impl<'a> BufRead for Stdin<'a> {
 impl<'a> Read for Stdin<'a> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let n = {
-            let mut chunk = try!(self.fill_buf());
-            try!(chunk.read(buf))
+            let mut chunk = self.fill_buf()?;
+            chunk.read(buf)?
         };
         self.consume(n);
         Ok(n)
@@ -365,7 +362,7 @@ macro_rules! writer {
                             request_id: self.req.id,
                             content: chunk.to_owned(),
                         };
-                        try!(rec.send(&mut &*self.req.sock));
+                        rec.send(&mut &*self.req.sock)?;
                     }
                     Ok(buf.len())
                 }
@@ -401,7 +398,7 @@ pub struct Request {
     filter_data: bool,
 }
 
-pub type Params<'a> = Box<Iterator<Item = (String, String)> + 'a>;
+pub type Params<'a> = Box<dyn Iterator<Item = (String, String)> + 'a>;
 
 fn get_values(keys: Vec<String>) -> Vec<(String, String)> {
     keys.into_iter().filter_map(|key|
@@ -417,22 +414,22 @@ fn get_values(keys: Vec<String>) -> Vec<(String, String)> {
 impl Request {
     fn begin(mut sock: &Socket) -> io::Result<(u16, Role, bool)> {
         loop {
-            match try!(Record::receive(&mut sock)) {
+            match Record::receive(&mut sock)? {
                 Record::UnknownType(rec_type) => {
-                    try!(Record::UnknownType(rec_type).send(&mut sock));
+                    Record::UnknownType(rec_type).send(&mut sock)?;
                 },
                 Record::GetValues(keys) => {
-                    try!(Record::GetValuesResult(get_values(keys)).send(&mut sock));
+                    Record::GetValuesResult(get_values(keys)).send(&mut sock)?;
                 },
                 Record::BeginRequest { request_id, role: Ok(role), keep_conn } => {
                     return Ok((request_id, role, keep_conn));
                 },
                 Record::BeginRequest { request_id, role: Err(_), .. } => {
-                    try!(Record::EndRequest {
+                    Record::EndRequest {
                         request_id: request_id,
                         app_status: 0,
                         protocol_status: ProtocolStatus::UnknownRole
-                    }.send(&mut sock));
+                    }.send(&mut sock)?;
                 },
                 _ => (),
             }
@@ -444,24 +441,21 @@ impl Request {
         let mut params = HashMap::new();
         let mut aborted = false;
         loop {
-            match try!(Record::receive(&mut &*sock)) {
+            match Record::receive(&mut &*sock)? {
                 Record::UnknownType(rec_type) => {
-                    try!(Record::UnknownType(rec_type).send(&mut &*sock));
+                    Record::UnknownType(rec_type).send(&mut &*sock)?;
                 },
                 Record::GetValues(keys) => {
-                    try!(
                         Record::GetValuesResult(get_values(keys))
-                        .send(&mut &*sock)
-                    );
+                        .send(&mut &*sock)?
                 },
                 Record::BeginRequest { request_id, .. } => {
-                    try!(Record::EndRequest {
+                    Record::EndRequest {
                             request_id: request_id,
                             app_status: 0,
                             protocol_status: ProtocolStatus::CantMpxConn,
                         }
-                        .send(&mut &*sock)
-                    );
+                        .send(&mut &*sock)?
                 }
                 Record::AbortRequest { request_id } => {
                     if id != request_id {
@@ -475,7 +469,7 @@ impl Request {
                         continue;
                     }
                     if content.is_empty() {
-                        params.extend(try!(read_pairs(&mut Cursor::new(&buf))));
+                        params.extend(read_pairs(&mut Cursor::new(&buf))?);
                         break;
                     } else {
                         buf.extend(content);
