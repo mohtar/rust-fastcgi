@@ -238,15 +238,15 @@ impl Record {
                 };
                 let keep_conn = content[2] & 1 == 1;
                 Record::BeginRequest {
-                    request_id: request_id,
-                    role: role,
-                    keep_conn: keep_conn
+                    request_id,
+                    role,
+                    keep_conn
                 }
             },
-            2 => Record::AbortRequest { request_id: request_id },
-            4 => Record::Params { request_id: request_id, content: content },
-            5 => Record::Stdin { request_id: request_id, content: content },
-            8 => Record::Data { request_id: request_id, content: content },
+            2 => Record::AbortRequest { request_id },
+            4 => Record::Params { request_id, content },
+            5 => Record::Stdin { request_id, content },
+            8 => Record::Data { request_id, content },
             9 => {
                 let items = read_pairs(&mut Cursor::new(content))?;
                 Record::GetValues(items.into_iter().map(|(key, _)| key).collect())
@@ -295,7 +295,7 @@ impl<'a> BufRead for Stdin<'a> {
                     },
                     (Record::BeginRequest { request_id, .. }, _) => {
                         Record::EndRequest {
-                            request_id: request_id,
+                            request_id,
                             app_status: 0,
                             protocol_status: ProtocolStatus::CantMpxConn,
                         }
@@ -426,7 +426,7 @@ impl Request {
                 },
                 Record::BeginRequest { request_id, role: Err(_), .. } => {
                     Record::EndRequest {
-                        request_id: request_id,
+                        request_id,
                         app_status: 0,
                         protocol_status: ProtocolStatus::UnknownRole
                     }.send(&mut sock)?;
@@ -451,7 +451,7 @@ impl Request {
                 },
                 Record::BeginRequest { request_id, .. } => {
                     Record::EndRequest {
-                            request_id: request_id,
+                            request_id,
                             app_status: 0,
                             protocol_status: ProtocolStatus::CantMpxConn,
                         }
@@ -479,11 +479,11 @@ impl Request {
             }
         }
         Ok(Request {
-            sock: sock,
-            id: id,
-            role: role,
-            params: params,
-            aborted: aborted,
+            sock,
+            id,
+            role,
+            params,
+            aborted,
             status: 0,
             buf: Vec::new(),
             pos: 0,
@@ -498,7 +498,7 @@ impl Request {
 
     /// Retrieves the value of the given parameter name.
     pub fn param(&self, key: &str) -> Option<String> {
-        self.params.get(key).map(|s| s.clone())
+        self.params.get(key).cloned()
     }
 
     /// Iterates over the FastCGI parameters.
@@ -570,7 +570,7 @@ fn run_transport<F>(handler: F, transport: &mut Transport) where
     loop {
         let sock = match transport.accept() {
             Ok(sock) => sock,
-            Err(e) => panic!(e.to_string()),
+            Err(e) => panic!("{}", e.to_string()),
         };
         let allow = match addrs {
             Some(ref addrs) => match sock.peer() {
