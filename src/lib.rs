@@ -42,6 +42,7 @@
 extern crate libc;
 
 use std::collections::{HashMap, HashSet};
+use std::convert::TryFrom;
 use std::io::{self, Read, Write, Cursor, BufRead};
 use std::marker::{Send, Sync};
 use std::mem;
@@ -154,13 +155,9 @@ fn write_pairs<W: Write>(w: &mut W, pairs: Vec<(String, String)>) -> io::Result<
 
 #[inline]
 fn write_record<W: Write>(w: &mut W, record_type: u8, request_id: u16, content: &[u8]) -> io::Result<()> {
-    assert!(content.len() <= std::u32::MAX as usize);
-    let request_id = unsafe {
-        mem::transmute::<_, [u8; 2]>(request_id.to_be())
-    };
-    let content_length = unsafe {
-        mem::transmute::<_, [u8; 2]>((content.len() as u16).to_be())
-    };
+    assert!(content.len() <= std::u16::MAX as usize);
+    let request_id = request_id.to_be_bytes();
+    let content_length = u16::try_from(content.len()).unwrap().to_be_bytes();
     w.write_all(&[
         1, record_type, request_id[0], request_id[1],
         content_length[0], content_length[1], 0, 0,
@@ -188,9 +185,7 @@ impl Record {
     fn send<W: Write>(self, w: &mut W) -> io::Result<()> {
         match self {
             Record::EndRequest { request_id, app_status, protocol_status } => {
-                let app_status = unsafe {
-                    mem::transmute::<_, [u8; 4]>(app_status.to_be())
-                };
+                let app_status = app_status.to_be_bytes();
                 let protocol_status = match protocol_status {
                     ProtocolStatus::RequestComplete => 0,
                     ProtocolStatus::CantMpxConn => 1,
@@ -238,15 +233,15 @@ impl Record {
                 };
                 let keep_conn = content[2] & 1 == 1;
                 Record::BeginRequest {
-                    request_id: request_id,
-                    role: role,
-                    keep_conn: keep_conn
+                    request_id,
+                    role,
+                    keep_conn
                 }
             },
-            2 => Record::AbortRequest { request_id: request_id },
-            4 => Record::Params { request_id: request_id, content: content },
-            5 => Record::Stdin { request_id: request_id, content: content },
-            8 => Record::Data { request_id: request_id, content: content },
+            2 => Record::AbortRequest { request_id },
+            4 => Record::Params { request_id, content },
+            5 => Record::Stdin { request_id, content },
+            8 => Record::Data { request_id, content },
             9 => {
                 let items = read_pairs(&mut Cursor::new(content))?;
                 Record::GetValues(items.into_iter().map(|(key, _)| key).collect())
@@ -295,7 +290,7 @@ impl<'a> BufRead for Stdin<'a> {
                     },
                     (Record::BeginRequest { request_id, .. }, _) => {
                         Record::EndRequest {
-                            request_id: request_id,
+                            request_id,
                             app_status: 0,
                             protocol_status: ProtocolStatus::CantMpxConn,
                         }
@@ -426,7 +421,7 @@ impl Request {
                 },
                 Record::BeginRequest { request_id, role: Err(_), .. } => {
                     Record::EndRequest {
-                        request_id: request_id,
+                        request_id,
                         app_status: 0,
                         protocol_status: ProtocolStatus::UnknownRole
                     }.send(&mut sock)?;
@@ -451,7 +446,7 @@ impl Request {
                 },
                 Record::BeginRequest { request_id, .. } => {
                     Record::EndRequest {
-                            request_id: request_id,
+                            request_id,
                             app_status: 0,
                             protocol_status: ProtocolStatus::CantMpxConn,
                         }
@@ -479,11 +474,11 @@ impl Request {
             }
         }
         Ok(Request {
-            sock: sock,
-            id: id,
-            role: role,
-            params: params,
-            aborted: aborted,
+            sock,
+            id,
+            role,
+            params,
+            aborted,
             status: 0,
             buf: Vec::new(),
             pos: 0,
@@ -498,7 +493,7 @@ impl Request {
 
     /// Retrieves the value of the given parameter name.
     pub fn param(&self, key: &str) -> Option<String> {
-        self.params.get(key).map(|s| s.clone())
+        self.params.get(key).cloned()
     }
 
     /// Iterates over the FastCGI parameters.
@@ -570,7 +565,7 @@ fn run_transport<F>(handler: F, transport: &mut Transport) where
     loop {
         let sock = match transport.accept() {
             Ok(sock) => sock,
-            Err(e) => panic!(e.to_string()),
+            Err(e) => panic!("{}", e.to_string()),
         };
         let allow = match addrs {
             Some(ref addrs) => match sock.peer() {

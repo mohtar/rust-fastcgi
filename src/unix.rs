@@ -28,7 +28,7 @@ use std::io::{self, Read, Write};
 use std::mem;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::os::unix::io::RawFd;
-use std::ptr::{null_mut};
+use std::ptr::null_mut;
 
 const LISTENSOCK_FILENO: c::c_int = 0;
 
@@ -52,7 +52,7 @@ impl Transport {
 
     pub fn accept(&mut self) -> io::Result<Socket> {
         let res = unsafe {
-            c::accept(self.inner, 0 as *mut _, 0 as *mut _)
+            c::accept(self.inner, null_mut(), null_mut())
         };
         if res == -1 {
             Err(io::Error::last_os_error())
