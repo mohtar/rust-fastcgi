@@ -42,6 +42,7 @@
 extern crate libc;
 
 use std::collections::{HashMap, HashSet};
+use std::convert::TryFrom;
 use std::io::{self, Read, Write, Cursor, BufRead};
 use std::marker::{Send, Sync};
 use std::mem;
@@ -154,13 +155,9 @@ fn write_pairs<W: Write>(w: &mut W, pairs: Vec<(String, String)>) -> io::Result<
 
 #[inline]
 fn write_record<W: Write>(w: &mut W, record_type: u8, request_id: u16, content: &[u8]) -> io::Result<()> {
-    assert!(content.len() <= std::u32::MAX as usize);
-    let request_id = unsafe {
-        mem::transmute::<_, [u8; 2]>(request_id.to_be())
-    };
-    let content_length = unsafe {
-        mem::transmute::<_, [u8; 2]>((content.len() as u16).to_be())
-    };
+    assert!(content.len() <= std::u16::MAX as usize);
+    let request_id = request_id.to_be_bytes();
+    let content_length = u16::try_from(content.len()).unwrap().to_be_bytes();
     w.write_all(&[
         1, record_type, request_id[0], request_id[1],
         content_length[0], content_length[1], 0, 0,
@@ -188,9 +185,7 @@ impl Record {
     fn send<W: Write>(self, w: &mut W) -> io::Result<()> {
         match self {
             Record::EndRequest { request_id, app_status, protocol_status } => {
-                let app_status = unsafe {
-                    mem::transmute::<_, [u8; 4]>(app_status.to_be())
-                };
+                let app_status = app_status.to_be_bytes();
                 let protocol_status = match protocol_status {
                     ProtocolStatus::RequestComplete => 0,
                     ProtocolStatus::CantMpxConn => 1,
